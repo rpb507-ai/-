@@ -67,7 +67,7 @@ txt = LANG[selected_lang]
 st.title(txt["title"])
 
 # Введення API ключа
-api_key_input = st.sidebar.text_input(txt["api_key"], type="password")
+api_key_input = "AQ.Ab8RN6JIedCxGgZl5Qvdhg_xSFgJ1NV678wQplpHy4BCnNvjZw"
 
 # Завантаження фотографій
 col1, col2, col3 = st.columns(3)
