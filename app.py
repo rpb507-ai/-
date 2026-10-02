@@ -127,7 +127,7 @@ def analyze_images(img1, img2, img3, key):
     i3 = Image.open(img3)
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         contents=[i1, i2, i3, prompt],
         config=types.GenerateContentConfig(response_mime_type="application/json"),
     )
