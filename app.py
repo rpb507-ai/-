@@ -3,14 +3,21 @@ from PIL import Image
 import google.generativeai as genai
 import streamlit as st
 
-# ==============================================================================
-# 🔑 ВШИТИЙ API КЛЮЧ: Вставте свій скопійований ключ з Google AI Studio між лапками
-# ==============================================================================
-API_KEY = "AQ.Ab8RN6JIedCxGgZl5Qvdhg_xSFgJ1NV678wQplpHy4BCnNvjZw"
+# Якщо ви не використовуєте Secrets у Streamlit Cloud, вставте ваш ключ сюди:
+HARDCODED_KEY = "СЮДИ_ВСТАВТЕ_ВАШ_API_КЛЮЧ"
 
 st.set_page_config(
     page_title="Valve Calibration Check", page_icon="⚙️", layout="wide"
 )
+
+# Отримання та очищення API-ключа (з Secrets або з коду)
+if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+else:
+    API_KEY = HARDCODED_KEY
+
+# Видалення можливих пробілів, переносів рядків та зайвих лапок
+API_KEY = API_KEY.strip().strip("'\"").strip()
 
 # Тексти та мови інтерфейсу
 LANG = {
@@ -24,7 +31,7 @@ LANG = {
         "t2": "2. Перевірка фактичного виміру (Екран vs Картка 1)",
         "screen_val": "Значення на екрані",
         "card_val": "Значення на картці",
-        "err_key": "Помилка: API Key не вказано в коді app.py!",
+        "err_key": "Помилка: API Key не вказано або він недійсний!",
         "err_files": "Будь ласка, завантажте всі 3 фотографії.",
     },
     "PL": {
@@ -37,7 +44,7 @@ LANG = {
         "t2": "2. Porównanie pomiaru rzeczywistego (Ekran vs Karta 1)",
         "screen_val": "Ekran",
         "card_val": "Karta",
-        "err_key": "Błąd: Brak klucza API w kodzie app.py!",
+        "err_key": "Błąd: Brak klucza API lub klucz jest nieprawidłowy!",
         "err_files": "Proszę przesłać wszystkie 3 zdjęcia.",
     },
     "EN": {
@@ -50,18 +57,16 @@ LANG = {
         "t2": "2. Actual Measurement Check (Screen vs Card 1)",
         "screen_val": "Screen Value",
         "card_val": "Card Value",
-        "err_key": "Error: API Key missing in app.py code!",
+        "err_key": "Error: API Key is missing or invalid!",
         "err_files": "Please upload all 3 photos.",
     },
 }
 
-# Вибір мови в меню
 selected_lang = st.sidebar.selectbox("Language / Мова / Język", ["UK", "PL", "EN"])
 txt = LANG[selected_lang]
 
 st.title(txt["title"])
 
-# Завантаження 3 фото
 col1, col2, col3 = st.columns(3)
 with col1:
     img1_file = st.file_uploader(txt["card1"], type=["jpg", "jpeg", "png"])
@@ -80,9 +85,7 @@ with col3:
 
 
 def analyze_images(img1, img2, img3, key):
-    clean_key = key.strip().strip("'\"")
-    genai.configure(api_key=clean_key)
-
+    genai.configure(api_key=key)
     model = genai.GenerativeModel("gemini-1.5-flash")
 
     prompt = """
@@ -118,13 +121,11 @@ def analyze_images(img1, img2, img3, key):
     return json.loads(response.text)
 
 
-# Пам'ять сесії
 if "analysis_result" not in st.session_state:
     st.session_state["analysis_result"] = None
 
-# Кнопка запуску
 if st.button(txt["btn"], type="primary", use_container_width=True):
-    if not API_KEY or "СЮДИ_ВСТАВТЕ" in API_KEY or len(API_KEY.strip()) < 10:
+    if not API_KEY or "СЮДИ_ВСТАВТЕ" in API_KEY or len(API_KEY) < 10:
         st.error(txt["err_key"])
     elif not (img1_file and img2_file and img3_file):
         st.error(txt["err_files"])
@@ -137,11 +138,9 @@ if st.button(txt["btn"], type="primary", use_container_width=True):
             except Exception as e:
                 st.error(f"Помилка обробки: {str(e)}")
 
-# Відображення результатів
 if st.session_state["analysis_result"]:
     res = st.session_state["analysis_result"]
 
-    # Завдання 1: Перевірка толеранцій
     st.subheader(txt["t1"])
     for item in res.get("task1", []):
         color = "#155724" if item["match"] else "#721c24"
@@ -158,7 +157,6 @@ if st.session_state["analysis_result"]:
             unsafe_allow_html=True,
         )
 
-    # Завдання 2: Перевірка фактичних вимірів
     st.subheader(txt["t2"])
     for item in res.get("task2", []):
         color = "#155724" if item["match"] else "#721c24"
@@ -175,7 +173,7 @@ if st.session_state["analysis_result"]:
             unsafe_allow_html=True,
         )
 
-# Нижній блок копірайту
+# Рядок копірайту внизу веб-сторінки
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>© Roman Bernyk</div>",
