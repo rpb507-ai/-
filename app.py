@@ -3,35 +3,35 @@ from PIL import Image
 import google.generativeai as genai
 import streamlit as st
 
-# Якщо ви не використовуєте Secrets у Streamlit Cloud, вставте ваш ключ сюди:
-HARDCODED_KEY = "СЮДИ_ВСТАВТЕ_ВАШ_API_КЛЮЧ"
-
 st.set_page_config(
     page_title="Valve Calibration Check", page_icon="⚙️", layout="wide"
 )
 
-# Отримання та очищення API-ключа (з Secrets або з коду)
+# 1. Отримання ключа зі Streamlit Secrets або з бічного меню (якщо Secrets порожні)
+api_key = ""
 if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-else:
-    API_KEY = HARDCODED_KEY
+    api_key = st.secrets["GEMINI_API_KEY"]
 
-# Видалення можливих пробілів, переносів рядків та зайвих лапок
-API_KEY = API_KEY.strip().strip("'\"").strip()
+# Якщо ключ не налаштований у Secrets, показуємо поле введення в бічному меню
+if not api_key:
+    api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-# Тексти та мови інтерфейсу
+# Очищення ключа від можливих пробілів чи лапок
+clean_api_key = api_key.strip().strip("'\"").strip() if api_key else ""
+
+# Переклади
 LANG = {
     "UK": {
         "title": "⚙️ Перевірка калібрування клапанів",
         "card1": "📸 Фото 1 (Картка фактичних вимірів)",
         "card2": "📸 Фото 2 (Картка толеранцій)",
-        "screen": "🖥️ Фото 3 (Екран монітора)",
+        "screen": "🖥️️ Фото 3 (Екран монітора)",
         "btn": "Розпочати порівняння",
         "t1": "1. Перевірка толеранцій (Екран vs Картка 2)",
         "t2": "2. Перевірка фактичного виміру (Екран vs Картка 1)",
         "screen_val": "Значення на екрані",
         "card_val": "Значення на картці",
-        "err_key": "Помилка: API Key не вказано або він недійсний!",
+        "err_key": "Помилка: Не вказано API Key. Додайте його в Secrets або у бічному меню.",
         "err_files": "Будь ласка, завантажте всі 3 фотографії.",
     },
     "PL": {
@@ -44,7 +44,7 @@ LANG = {
         "t2": "2. Porównanie pomiaru rzeczywistego (Ekran vs Karta 1)",
         "screen_val": "Ekran",
         "card_val": "Karta",
-        "err_key": "Błąd: Brak klucza API lub klucz jest nieprawidłowy!",
+        "err_key": "Błąd: Brak klucza API w Secrets lub w panelu bocznym.",
         "err_files": "Proszę przesłać wszystkie 3 zdjęcia.",
     },
     "EN": {
@@ -57,7 +57,7 @@ LANG = {
         "t2": "2. Actual Measurement Check (Screen vs Card 1)",
         "screen_val": "Screen Value",
         "card_val": "Card Value",
-        "err_key": "Error: API Key is missing or invalid!",
+        "err_key": "Error: API Key is missing. Add it to Secrets or the sidebar.",
         "err_files": "Please upload all 3 photos.",
     },
 }
@@ -125,7 +125,7 @@ if "analysis_result" not in st.session_state:
     st.session_state["analysis_result"] = None
 
 if st.button(txt["btn"], type="primary", use_container_width=True):
-    if not API_KEY or "СЮДИ_ВСТАВТЕ" in API_KEY or len(API_KEY) < 10:
+    if not clean_api_key or len(clean_api_key) < 10:
         st.error(txt["err_key"])
     elif not (img1_file and img2_file and img3_file):
         st.error(txt["err_files"])
@@ -133,7 +133,7 @@ if st.button(txt["btn"], type="primary", use_container_width=True):
         with st.spinner("Аналіз зображень через Gemini AI..."):
             try:
                 st.session_state["analysis_result"] = analyze_images(
-                    img1_file, img2_file, img3_file, API_KEY
+                    img1_file, img2_file, img3_file, clean_api_key
                 )
             except Exception as e:
                 st.error(f"Помилка обробки: {str(e)}")
@@ -173,7 +173,6 @@ if st.session_state["analysis_result"]:
             unsafe_allow_html=True,
         )
 
-# Рядок копірайту внизу веб-сторінки
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>© Roman Bernyk</div>",
