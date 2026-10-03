@@ -88,7 +88,9 @@ with col3:
 
 
 def analyze_images(img1, img2, img3, key):
-    client = genai.Client(api_key=key)
+    # Видаляємо випадкові пробіли на початку чи в кінці ключа
+    clean_key = key.strip()
+    client = genai.Client(api_key=clean_key)
 
     prompt = """
     You are an industrial quality control expert. Compare measurement data from three images:
@@ -97,27 +99,17 @@ def analyze_images(img1, img2, img3, key):
     - Image 3: Monitor screen showing current calibration readings (Opis, Pomiar, Dolna tolerancja, Gorna tolerancja).
 
     Tasks:
-    1. Match parameters logically by name between Image 3 and Cards (e.g. "03-SREDNICA GRZYBKA" matches "Średnica grzybka").
+    1. Match parameters logically by name between Image 3 and Cards.
     2. Task 1: Compare Image 3 "Dolna tolerancja" and "Gorna tolerancja" against Image 2 "Tolerancja".
-    3. Task 2: Check if Image 3 "Pomiar" falls within the "OK" range from Image 1 (between OK min and OK max) OR matches the expected value.
+    3. Task 2: Check if Image 3 "Pomiar" falls within the "OK" range from Image 1 (between OK min and OK max).
 
     Return ONLY a JSON object formatted as follows:
     {
         "task1": [
-            {
-                "parameter": "Parameter name",
-                "screen_val": "Dolna: -0.15, Gorna: 0.15",
-                "card_val": "±0.15",
-                "match": true
-            }
+            {"parameter": "Parameter name", "screen_val": "Dolna: -0.15, Gorna: 0.15", "card_val": "±0.15", "match": true}
         ],
         "task2": [
-            {
-                "parameter": "Parameter name",
-                "screen_val": "30.017",
-                "card_val": "30.013 - 30.033",
-                "match": true
-            }
+            {"parameter": "Parameter name", "screen_val": "30.017", "card_val": "30.013 - 30.033", "match": true}
         ]
     }
     """
@@ -127,63 +119,34 @@ def analyze_images(img1, img2, img3, key):
     i3 = Image.open(img3)
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model="gemini-2.0-flash",
         contents=[i1, i2, i3, prompt],
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json"
+        ),
     )
     return json.loads(response.text)
 
 
+# Перевірка перед запуском
 if st.button(txt["btn"], type="primary", use_container_width=True):
-    if not (img1_file and img2_file and img3_file and api_key_input):
-        st.error(txt["err_upload"])
+    if not api_key_input or len(api_key_input.strip()) < 10:
+        st.error(
+            "Будь ласка, перевірте API Key у боковому меню (значок >> зверху)."
+        )
+    elif not (img1_file and img2_file and img3_file):
+        st.error("Будь ласка, завантажте всі 3 фотографії.")
     else:
         with st.spinner("Аналіз зображень через Gemini AI..."):
             try:
-                res = analyze_images(
+                st.session_state["analysis_result"] = analyze_images(
                     img1_file, img2_file, img3_file, api_key_input
                 )
-
-                # Відображення Завдання 1
-                st.subheader(txt["t1"])
-                for item in res.get("task1", []):
-                    color = "#155724" if item["match"] else "#721c24"
-                    bg = "#d4edda" if item["match"] else "#f8d7da"
-                    status_text = "OK" if item["match"] else "NOK"
-
-                    st.markdown(
-                        f"""
-                    <div style="background-color:{bg}; padding:10px; border-radius:5px; margin-bottom:5px; color:{color}; font-weight:bold;">
-                        <b>{item['parameter']}</b><br>
-                        {txt['screen_val']}: {item['screen_val']} | {txt['card_val']}: {item['card_val']} &nbsp; <b>[{status_text}]</b>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
-                # Відображення Завдання 2
-                st.subheader(txt["t2"])
-                for item in res.get("task2", []):
-                    color = "#155724" if item["match"] else "#721c24"
-                    bg = "#d4edda" if item["match"] else "#f8d7da"
-                    status_text = "OK" if item["match"] else "NOK"
-
-                    st.markdown(
-                        f"""
-                    <div style="background-color:{bg}; padding:10px; border-radius:5px; margin-bottom:5px; color:{color}; font-weight:bold;">
-                        <b>{item['parameter']}</b><br>
-                        {txt['screen_val']}: {item['screen_val']} | {txt['card_val']}: {item['card_val']} &nbsp; <b>[{status_text}]</b>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-
             except Exception as e:
-                st.error(f"Помилка обробки: {str(e)}")
-
+                st.error(f"Помилка авторизації або обробки: {str(e)}")
 # Копірайт
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: gray;'>© Roman Bernyk</div>",
+    "<div style='text-align: center; color: gray;'>© Roman BERNYK</div>",
     unsafe_allow_html=True,
 )
