@@ -86,7 +86,7 @@ with col3:
 
 def analyze_images(img1, img2, img3, key):
     genai.configure(api_key=key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-3.5-flash")
 
     prompt = """
     You are an industrial quality control expert. Compare measurement data from three images:
