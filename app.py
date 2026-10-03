@@ -1,75 +1,67 @@
 import json
-from google import genai
-from google.genai import types
 from PIL import Image
+import google.generativeai as genai
 import streamlit as st
+
+# ==============================================================================
+# 🔑 ВШИТИЙ API КЛЮЧ: Вставте свій скопійований ключ з Google AI Studio між лапками
+# ==============================================================================
+API_KEY = "AQ.Ab8RN6JIedCxGgZl5Qvdhg_xSFgJ1NV678wQplpHy4BCnNvjZw"
 
 st.set_page_config(
     page_title="Valve Calibration Check", page_icon="⚙️", layout="wide"
 )
 
-# Переклади інтерфейсу
+# Тексти та мови інтерфейсу
 LANG = {
     "UK": {
         "title": "⚙️ Перевірка калібрування клапанів",
-        "lang_select": "Мова / Język / Language",
-        "api_key": "Gemini API Key",
         "card1": "📸 Фото 1 (Картка фактичних вимірів)",
         "card2": "📸 Фото 2 (Картка толеранцій)",
         "screen": "🖥️ Фото 3 (Екран монітора)",
         "btn": "Розпочати порівняння",
         "t1": "1. Перевірка толеранцій (Екран vs Картка 2)",
         "t2": "2. Перевірка фактичного виміру (Екран vs Картка 1)",
-        "param": "Параметр",
         "screen_val": "Значення на екрані",
         "card_val": "Значення на картці",
-        "status": "Результат",
-        "err_upload": "Будь ласка, завантажте всі 3 фото та вкажіть API Key.",
+        "err_key": "Помилка: API Key не вказано в коді app.py!",
+        "err_files": "Будь ласка, завантажте всі 3 фотографії.",
     },
     "PL": {
         "title": "⚙️ Weryfikacja kalibracji zaworów",
-        "lang_select": "Мова / Język / Language",
-        "api_key": "Gemini API Key",
         "card1": "📸 Zdjęcie 1 (Karta pomiarów rzeczywistych)",
         "card2": "📸 Zdjęcie 2 (Karta tolerancji)",
         "screen": "🖥️ Zdjęcie 3 (Ekran monitora)",
         "btn": "Rozpocznij porównanie",
         "t1": "1. Porównanie tolerancji (Ekran vs Karta 2)",
         "t2": "2. Porównanie pomiaru rzeczywistego (Ekran vs Karta 1)",
-        "param": "Parametr",
         "screen_val": "Ekran",
         "card_val": "Karta",
-        "status": "Wynik",
-        "err_upload": "Proszę przesłać wszystkie 3 zdjęcia i wprowadzić klucz API.",
+        "err_key": "Błąd: Brak klucza API w kodzie app.py!",
+        "err_files": "Proszę przesłać wszystkie 3 zdjęcia.",
     },
     "EN": {
         "title": "⚙️ Valve Calibration Verification",
-        "lang_select": "Мова / Język / Language",
-        "api_key": "Gemini API Key",
         "card1": "📸 Photo 1 (Actual Measurements Card)",
         "card2": "📸 Photo 2 (Tolerances Card)",
         "screen": "🖥️ Photo 3 (Monitor Screen)",
         "btn": "Run Analysis",
         "t1": "1. Tolerance Check (Screen vs Card 2)",
         "t2": "2. Actual Measurement Check (Screen vs Card 1)",
-        "param": "Parameter",
         "screen_val": "Screen Value",
         "card_val": "Card Value",
-        "status": "Status",
-        "err_upload": "Please upload all 3 photos and provide an API Key.",
+        "err_key": "Error: API Key missing in app.py code!",
+        "err_files": "Please upload all 3 photos.",
     },
 }
 
-# Вибір мови в боковому меню
+# Вибір мови в меню
 selected_lang = st.sidebar.selectbox("Language / Мова / Język", ["UK", "PL", "EN"])
 txt = LANG[selected_lang]
 
 st.title(txt["title"])
 
-# Введення API ключа
-api_key_input = "AQ.Ab8RN6JIedCxGgZl5Qvdhg_xSFgJ1NV678wQplpHy4BCnNvjZw"
-
-# Завантаження фотографій
+# Завантаження 3 фото
 col1, col2, col3 = st.columns(3)
 with col1:
     img1_file = st.file_uploader(txt["card1"], type=["jpg", "jpeg", "png"])
@@ -88,9 +80,10 @@ with col3:
 
 
 def analyze_images(img1, img2, img3, key):
-    # Видаляємо випадкові пробіли на початку чи в кінці ключа
-    clean_key = key.strip()
-    client = genai.Client(api_key=clean_key)
+    clean_key = key.strip().strip("'\"")
+    genai.configure(api_key=clean_key)
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     prompt = """
     You are an industrial quality control expert. Compare measurement data from three images:
@@ -118,35 +111,73 @@ def analyze_images(img1, img2, img3, key):
     i2 = Image.open(img2)
     i3 = Image.open(img3)
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[i1, i2, i3, prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json"
-        ),
+    response = model.generate_content(
+        [i1, i2, i3, prompt],
+        generation_config={"response_mime_type": "application/json"},
     )
     return json.loads(response.text)
 
 
-# Перевірка перед запуском
+# Пам'ять сесії
+if "analysis_result" not in st.session_state:
+    st.session_state["analysis_result"] = None
+
+# Кнопка запуску
 if st.button(txt["btn"], type="primary", use_container_width=True):
-    if not api_key_input or len(api_key_input.strip()) < 10:
-        st.error(
-            "Будь ласка, перевірте API Key у боковому меню (значок >> зверху)."
-        )
+    if not API_KEY or "СЮДИ_ВСТАВТЕ" in API_KEY or len(API_KEY.strip()) < 10:
+        st.error(txt["err_key"])
     elif not (img1_file and img2_file and img3_file):
-        st.error("Будь ласка, завантажте всі 3 фотографії.")
+        st.error(txt["err_files"])
     else:
         with st.spinner("Аналіз зображень через Gemini AI..."):
             try:
                 st.session_state["analysis_result"] = analyze_images(
-                    img1_file, img2_file, img3_file, api_key_input
+                    img1_file, img2_file, img3_file, API_KEY
                 )
             except Exception as e:
-                st.error(f"Помилка авторизації або обробки: {str(e)}")
-# Копірайт
+                st.error(f"Помилка обробки: {str(e)}")
+
+# Відображення результатів
+if st.session_state["analysis_result"]:
+    res = st.session_state["analysis_result"]
+
+    # Завдання 1: Перевірка толеранцій
+    st.subheader(txt["t1"])
+    for item in res.get("task1", []):
+        color = "#155724" if item["match"] else "#721c24"
+        bg = "#d4edda" if item["match"] else "#f8d7da"
+        status_text = "OK" if item["match"] else "NOK"
+
+        st.markdown(
+            f"""
+        <div style="background-color:{bg}; padding:10px; border-radius:5px; margin-bottom:5px; color:{color}; font-weight:bold;">
+            <b>{item['parameter']}</b><br>
+            {txt['screen_val']}: {item['screen_val']} | {txt['card_val']}: {item['card_val']} &nbsp; <b>[{status_text}]</b>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    # Завдання 2: Перевірка фактичних вимірів
+    st.subheader(txt["t2"])
+    for item in res.get("task2", []):
+        color = "#155724" if item["match"] else "#721c24"
+        bg = "#d4edda" if item["match"] else "#f8d7da"
+        status_text = "OK" if item["match"] else "NOK"
+
+        st.markdown(
+            f"""
+        <div style="background-color:{bg}; padding:10px; border-radius:5px; margin-bottom:5px; color:{color}; font-weight:bold;">
+            <b>{item['parameter']}</b><br>
+            {txt['screen_val']}: {item['screen_val']} | {txt['card_val']}: {item['card_val']} &nbsp; <b>[{status_text}]</b>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+# Нижній блок копірайту
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: gray;'>© Roman BERNYK</div>",
+    "<div style='text-align: center; color: gray;'>© Roman Bernyk</div>",
     unsafe_allow_html=True,
 )
