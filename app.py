@@ -7,25 +7,23 @@ st.set_page_config(
     page_title="Valve Calibration Check", page_icon="⚙️", layout="wide"
 )
 
-# 1. Отримання ключа зі Streamlit Secrets або з бічного меню (якщо Secrets порожні)
+# 1. Отримання ключа зі Streamlit Secrets або з бічного меню
 api_key = ""
 if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"]:
     api_key = st.secrets["GEMINI_API_KEY"]
 
-# Якщо ключ не налаштований у Secrets, показуємо поле введення в бічному меню
 if not api_key:
     api_key = st.sidebar.text_input("Gemini API Key", type="password")
 
-# Очищення ключа від можливих пробілів чи лапок
 clean_api_key = api_key.strip().strip("'\"").strip() if api_key else ""
 
-# Переклади
+# Переклади інтерфейсу
 LANG = {
     "UK": {
         "title": "⚙️ Перевірка калібрування клапанів",
         "card1": "📸 Фото 1 (Картка фактичних вимірів)",
         "card2": "📸 Фото 2 (Картка толеранцій)",
-        "screen": "🖥️️ Фото 3 (Екран монітора)",
+        "screen": "🖥️ Фото 3 (Екран монітора)",
         "btn": "Розпочати порівняння",
         "t1": "1. Перевірка толеранцій (Екран vs Картка 2)",
         "t2": "2. Перевірка фактичного виміру (Екран vs Картка 1)",
@@ -86,26 +84,35 @@ with col3:
 
 def analyze_images(img1, img2, img3, key):
     genai.configure(api_key=key)
-    model = genai.GenerativeModel("gemini-3.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
+    # Жорстко сформульовані інструкції для повного опрацювання всіх параметрів
     prompt = """
-    You are an industrial quality control expert. Compare measurement data from three images:
-    - Image 1: Calibration card with actual measurements (Wymiar rzeczywisty) and "OK" range limits (OK wymiar ponizej to OK wymiar powyzej).
-    - Image 2: Reference card with nominal dimensions and tolerances (Tolerancja ±X).
-    - Image 3: Monitor screen showing current calibration readings (Opis, Pomiar, Dolna tolerancja, Gorna tolerancja).
+    You are a meticulous industrial quality control expert. Perform an EXHAUSTIVE, COMPLETE comparison of ALL parameters visible across the three images.
+
+    CRITICAL MANDATORY INSTRUCTIONS:
+    1. You MUST process 100% of the parameter rows listed on Image 3 (Monitor Screen).
+    2. DO NOT skip, summarize, merge, or omit ANY row or parameter. If Image 3 contains 5, 8, or 12 parameters, your JSON output MUST contain EXACTLY that same number of items.
+
+    Image Descriptions:
+    - Image 1: Calibration card with actual measurements ("Wymiar rzeczywisty") and "OK" range limits ("OK wymiar ponizej" to "OK wymiar powyzej").
+    - Image 2: Reference card with nominal dimensions and tolerances ("Tolerancja ±X").
+    - Image 3: Monitor screen showing current calibration readings (columns: "Opis", "Pomiar", "Dolna tolerancja", "Gorna tolerancja").
 
     Tasks:
-    1. Match parameters logically by name between Image 3 and Cards.
-    2. Task 1: Compare Image 3 "Dolna tolerancja" and "Gorna tolerancja" against Image 2 "Tolerancja".
-    3. Task 2: Check if Image 3 "Pomiar" falls within the "OK" range from Image 1 (between OK min and OK max).
+    1. Scan EVERY row on Image 3 from top to bottom.
+    2. Task 1 (Tolerance Check): For EVERY parameter row, compare Image 3 "Dolna tolerancja" and "Gorna tolerancja" against Image 2 "Tolerancja". Set "match" to true if tolerances match, false if they differ.
+    3. Task 2 (Actual Measurement Check): For EVERY parameter row, check if Image 3 "Pomiar" falls within the "OK" range from Image 1 (between OK min and OK max). Set "match" to true if within range, false otherwise.
 
-    Return ONLY a JSON object formatted as follows:
+    Return ONLY a valid JSON object strictly matching this format:
     {
         "task1": [
-            {"parameter": "Parameter name", "screen_val": "Dolna: -0.15, Gorna: 0.15", "card_val": "±0.15", "match": true}
+            {"parameter": "Parameter 1 Name", "screen_val": "Dolna: -0.15, Gorna: 0.15", "card_val": "±0.15", "match": true},
+            {"parameter": "Parameter 2 Name", "screen_val": "Dolna: -0.10, Gorna: 0.10", "card_val": "±0.10", "match": true}
         ],
         "task2": [
-            {"parameter": "Parameter name", "screen_val": "30.017", "card_val": "30.013 - 30.033", "match": true}
+            {"parameter": "Parameter 1 Name", "screen_val": "30.017", "card_val": "30.013 - 30.033", "match": true},
+            {"parameter": "Parameter 2 Name", "screen_val": "15.002", "card_val": "14.990 - 15.010", "match": true}
         ]
     }
     """
@@ -116,7 +123,10 @@ def analyze_images(img1, img2, img3, key):
 
     response = model.generate_content(
         [i1, i2, i3, prompt],
-        generation_config={"response_mime_type": "application/json"},
+        generation_config={
+            "response_mime_type": "application/json",
+            "temperature": 0.0,  # Нульова температура для максимальної точності та відсутності пропусків
+        },
     )
     return json.loads(response.text)
 
@@ -138,6 +148,7 @@ if st.button(txt["btn"], type="primary", use_container_width=True):
             except Exception as e:
                 st.error(f"Помилка обробки: {str(e)}")
 
+# Відображення результатів
 if st.session_state["analysis_result"]:
     res = st.session_state["analysis_result"]
 
@@ -175,6 +186,6 @@ if st.session_state["analysis_result"]:
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: gray;'>© Roman Bernyk</div>",
+    "<div style='text-align: center; color: gray;'>© Roman BERNYK</div>",
     unsafe_allow_html=True,
 )
