@@ -84,7 +84,7 @@ with col3:
 
 def analyze_images(img1, img2, img3, key):
     genai.configure(api_key=key)
-    model = genai.GenerativeModel("gemini-3.0-flash")
+    model = genai.GenerativeModel("gemini-3.5-flash")
 
     # Жорстко сформульовані інструкції для повного опрацювання всіх параметрів
     prompt = """
